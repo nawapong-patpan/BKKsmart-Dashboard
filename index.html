@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bed Transparency Dashboard - สำนักการแพทย์ กรุงเทพมหานคร</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --bma-green-dark:#0d4d2e;
+  --bma-green:#1a7a47;
+  --bma-green-light:#2d9d5f;
+  --bma-gold:#d4a017;
+  --bma-gold-light:#f2c94c;
+  --cream:#fdf9ee;
+  --bg:#f3f7f2;
+  --panel:#ffffff;
+  --text:#1e3a2a;
+  --muted:#6b7d72;
+  --border:#d8e4dc;
+  --red:#c0392b;
+  --amber:#e67e22;
+  --green-ok:#27ae60;
+  --purple:#8e44ad;
+  --teal:#16a085;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:"Sarabun","Prompt","Segoe UI",Tahoma,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  overflow:hidden;
+}
+
+/* ======= HEADER ======= */
+.header{
+  background:linear-gradient(135deg,var(--bma-green-dark) 0%,var(--bma-green) 100%);
+  color:#fff;
+  padding:12px 24px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  box-shadow:0 2px 8px rgba(0,0,0,0.15);
+  border-bottom:3px solid var(--bma-gold);
+  height:72px;
+}
+.header-left{display:flex;align-items:center;gap:16px;}
+.logo{
+  width:48px;height:48px;
+  background:var(--bma-gold);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:700;color:var(--bma-green-dark);
+  border:2px solid #fff;
+}
+.title-block h1{font-size:18px;font-weight:700;letter-spacing:0.3px;}
+.title-block p{font-size:12px;opacity:0.85;margin-top:2px;}
+.header-right{display:flex;align-items:center;gap:20px;}
+.live-badge{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,0.15);
+  padding:6px 14px;border-radius:20px;
+  font-size:12px;font-weight:600;
+  border:1px solid rgba(255,255,255,0.25);
+}
+.live-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:#ff5a5a;
+  animation:pulse 1.5s infinite;
+}
+@keyframes pulse{
+  0%,100%{opacity:1;transform:scale(1);}
+  50%{opacity:0.4;transform:scale(1.3);}
+}
+.clock{
+  font-family:'Courier New',monospace;
+  font-size:14px;font-weight:600;
+  background:rgba(0,0,0,0.2);
+  padding:6px 12px;border-radius:6px;
+}
+
+/* ======= LAYOUT ======= */
+.container{
+  display:grid;
+  grid-template-columns:340px 1fr 420px;
+  height:calc(100vh - 72px);
+  gap:0;
+}
+
+/* ======= LEFT PANEL: Hospital List ======= */
+.sidebar{
+  background:var(--panel);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  padding:16px;
+}
+.sidebar-title{
+  font-size:14px;font-weight:700;
+  color:var(--bma-green-dark);
+  margin-bottom:12px;
+  padding-bottom:8px;
+  border-bottom:2px solid var(--bma-gold);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sidebar-title .count{
+  background:var(--bma-green);color:#fff;
+  padding:2px 10px;border-radius:12px;
+  font-size:11px;
+}
+.hospital-card{
+  background:var(--cream);
+  border:1px solid var(--border);
+  border-left:4px solid var(--bma-green);
+  border-radius:8px;
+  padding:10px 12px;
+  margin-bottom:8px;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.hospital-card:hover{
+  transform:translateX(3px);
+  box-shadow:0 2px 8px rgba(26,122,71,0.2);
+  border-left-color:var(--bma-gold);
+}
+.hospital-card.active{
+  background:linear-gradient(90deg,rgba(212,160,23,0.15),transparent);
+  border-left-color:var(--bma-gold);
+  border-left-width:5px;
+  box-shadow:0 2px 12px rgba(26,122,71,0.25);
+}
+.hc-name{font-size:13px;font-weight:600;color:var(--bma-green-dark);}
+.hc-stats{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:6px;font-size:11px;color:var(--muted);}
+.hc-stats span strong{color:var(--bma-green);font-weight:700;}
+.hc-rtpa-tag{
+  font-size:10px;font-weight:700;padding:1px 7px;border-radius:9px;
+  background:var(--green-ok);color:#fff;
+}
+.hc-rtpa-tag.off{background:var(--red);}
+.hc-bar{
+  height:5px;border-radius:3px;background:var(--border);
+  margin-top:6px;overflow:hidden;
+}
+.hc-bar-fill{height:100%;background:linear-gradient(90deg,var(--bma-green),var(--bma-green-light));transition:width 0.5s;}
+.hc-bar-fill.high{background:linear-gradient(90deg,var(--red),var(--amber));}
+.hc-bar-fill.mid{background:linear-gradient(90deg,var(--amber),var(--bma-gold));}
+
+/* ======= CENTER: Map ======= */
+.map-wrap{position:relative;background:#e8f1ec;}
+#map{width:100%;height:100%;}
+.map-overlay{
+  position:absolute;top:16px;left:16px;z-index:500;
+  background:rgba(255,255,255,0.95);
+  padding:12px 16px;border-radius:10px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.15);
+  border-left:4px solid var(--bma-gold);
+  max-width:280px;
+}
+.map-overlay h3{font-size:13px;color:var(--bma-green-dark);margin-bottom:4px;}
+.map-overlay p{font-size:11px;color:var(--muted);line-height:1.5;}
+.map-legend{
+  position:absolute;bottom:16px;left:16px;z-index:500;
+  background:rgba(255,255,255,0.95);
+  padding:10px 14px;border-radius:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.15);
+  font-size:11px;
+}
+.map-legend .row{display:flex;align-items:center;gap:8px;margin:3px 0;}
+.legend-dot{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.2);}
+
+/* Custom leaflet marker */
+.bed-marker{
+  background:var(--bma-green);
+  color:#fff;
+  border-radius:50% 50% 50% 0;
+  width:36px;height:36px;
+  transform:rotate(-45deg);
+  display:flex;align-items:center;justify-content:center;
+  border:3px solid #fff;
+  box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  font-weight:700;
+  font-size:12px;
+  cursor:pointer;
+  transition:all 0.3s;
+}
+.bed-marker span{transform:rotate(45deg);}
+.bed-marker.high{background:var(--red);}
+.bed-marker.mid{background:var(--amber);}
+.bed-marker.low{background:var(--green-ok);}
+.bed-marker.active-pin{
+  transform:rotate(-45deg) scale(1.3);
+  box-shadow:0 4px 16px rgba(212,160,23,0.6);
+  border-color:var(--bma-gold);
+  border-width:4px;
+  z-index:1000!important;
+}
+
+/* ======= RIGHT PANEL: Details ======= */
+.details{
+  background:var(--panel);
+  border-left:1px solid var(--border);
+  overflow-y:auto;
+  padding:16px;
+}
+.detail-header{
+  background:linear-gradient(135deg,var(--bma-green),var(--bma-green-dark));
+  color:#fff;
+  padding:14px 16px;
+  border-radius:10px;
+  margin-bottom:14px;
+  border-bottom:3px solid var(--bma-gold);
+}
+.detail-header h2{font-size:16px;font-weight:700;}
+.detail-header .sub{font-size:11px;opacity:0.85;margin-top:4px;}
+
+/* KPI Cards */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.kpi{
+  background:var(--cream);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:12px;
+  position:relative;
+  overflow:hidden;
+}
+.kpi::before{
+  content:"";
+  position:absolute;top:0;left:0;
+  width:4px;height:100%;
+  background:var(--bma-green);
+}
+.kpi.icu::before{background:var(--red);}
+.kpi.vent::before{background:var(--amber);}
+.kpi.total::before{background:var(--bma-gold);}
+.kpi.or::before{background:var(--purple);}
+.kpi.inc::before{background:var(--teal);}
+.kpi .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
+.kpi .value{font-size:26px;font-weight:800;color:var(--bma-green-dark);margin-top:4px;line-height:1;}
+.kpi .unit{font-size:11px;color:var(--muted);margin-top:2px;}
+.kpi.icu .value{color:var(--red);}
+.kpi.vent .value{color:var(--amber);}
+.kpi.total .value{color:var(--bma-gold);}
+.kpi.or .value{color:var(--purple);}
+.kpi.inc .value{color:var(--teal);}
+
+/* rtPA banner */
+.rtpa-banner{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:10px;
+  margin-bottom:14px;border:1px solid var(--border);
+}
+.rtpa-banner.ready{background:rgba(39,174,96,0.10);border-left:4px solid var(--green-ok);}
+.rtpa-banner.notready{background:rgba(192,57,43,0.08);border-left:4px solid var(--red);}
+.rtpa-icon{font-size:26px;line-height:1;}
+.rtpa-text{flex:1;}
+.rtpa-text .t{font-size:13px;font-weight:700;color:var(--bma-green-dark);}
+.rtpa-text .s{font-size:11px;color:var(--muted);margin-top:2px;}
+.rtpa-state{
+  font-size:12px;font-weight:800;padding:5px 12px;border-radius:14px;
+  white-space:nowrap;
+}
+.rtpa-state.ready{background:var(--green-ok);color:#fff;}
+.rtpa-state.notready{background:var(--red);color:#fff;}
+
+/* Section */
+.section-title{
+  font-size:12px;font-weight:700;
+  color:var(--bma-green-dark);
+  margin:14px 0 8px;
+  padding-bottom:6px;
+  border-bottom:2px dashed var(--border);
+  display:flex;align-items:center;gap:6px;
+}
+.section-title::before{content:"▎";color:var(--bma-gold);}
+
+/* Dept table */
+.dept-table{width:100%;border-collapse:collapse;font-size:12px;}
+.dept-table th{
+  background:var(--bma-green-dark);color:#fff;
+  padding:7px 8px;text-align:left;
+  font-weight:600;font-size:11px;
+}
+.dept-table th:not(:first-child){text-align:center;}
+.dept-table td{padding:6px 8px;border-bottom:1px solid var(--border);}
+.dept-table td:not(:first-child){text-align:center;}
+.dept-table tr:hover{background:rgba(212,160,23,0.08);}
+.dept-table .dept-name{font-weight:600;color:var(--text);}
+.dept-table .free{font-weight:700;color:var(--bma-green);}
+.dept-table .free.zero{color:var(--red);}
+.dept-table .free.low{color:var(--amber);}
+.pct-pill{
+  display:inline-block;
+  padding:2px 8px;border-radius:10px;
+  font-size:10px;font-weight:700;
+  background:var(--green-ok);color:#fff;
+}
+.pct-pill.mid{background:var(--amber);}
+.pct-pill.high{background:var(--red);}
+
+/* Resource summary table */
+.res-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px;}
+.res-table th{
+  background:var(--bma-green-dark);color:#fff;
+  padding:7px 8px;text-align:left;font-weight:600;font-size:11px;
+}
+.res-table th:not(:first-child){text-align:center;}
+.res-table td{padding:7px 8px;border-bottom:1px solid var(--border);}
+.res-table td:not(:first-child){text-align:center;}
+.res-table tr:hover{background:rgba(212,160,23,0.08);}
+.res-name{font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;}
+.res-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:5px;font-size:11px;flex-shrink:0;
+}
+.res-table .free{font-weight:700;color:var(--bma-green);}
+.res-table .free.zero{color:var(--red);}
+.res-table .free.low{color:var(--amber);}
+.status-pill{
+  display:inline-block;padding:2px 9px;border-radius:10px;
+  font-size:10px;font-weight:700;
+}
+.status-pill.ready{background:var(--green-ok);color:#fff;}
+.status-pill.notready{background:var(--red);color:#fff;}
+
+/* Progress ring for occupancy */
+.occ-box{
+  background:var(--cream);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:14px;
+  display:flex;align-items:center;gap:16px;
+  margin-bottom:12px;
+}
+.ring{position:relative;width:80px;height:80px;flex-shrink:0;}
+.ring svg{transform:rotate(-90deg);}
+.ring circle{fill:none;stroke-width:8;}
+.ring .bg{stroke:var(--border);}
+.ring .fg{stroke:var(--bma-green);stroke-linecap:round;transition:stroke-dashoffset 0.6s;}
+.ring .label{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  font-size:16px;font-weight:800;color:var(--bma-green-dark);
+}
+.occ-info{flex:1;}
+.occ-info .t{font-size:12px;color:var(--muted);}
+.occ-info .v{font-size:14px;font-weight:700;color:var(--bma-green-dark);margin-top:4px;}
+
+/* Last update footer */
+.update-footer{
+  text-align:center;
+  font-size:11px;color:var(--muted);
+  padding:10px;margin-top:8px;
+  border-top:1px dashed var(--border);
+}
+
+/* Leaflet popup custom */
+.leaflet-popup-content-wrapper{
+  background:var(--panel);
+  border-radius:10px;
+  border-top:3px solid var(--bma-gold);
+}
+.leaflet-popup-content{margin:12px 14px;font-family:inherit;}
+.popup-title{font-size:13px;font-weight:700;color:var(--bma-green-dark);margin-bottom:6px;}
+.popup-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;}
+.popup-grid .lbl{color:var(--muted);}
+.popup-grid .val{font-weight:700;color:var(--bma-green);text-align:right;}
+.popup-grid .val.off{color:var(--red);}
+.popup-btn{
+  display:block;width:100%;
+  margin-top:8px;padding:6px;
+  background:var(--bma-green);color:#fff;
+  border:none;border-radius:6px;
+  font-size:11px;font-weight:600;cursor:pointer;
+  font-family:inherit;
+}
+.popup-btn:hover{background:var(--bma-green-dark);}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--bma-green-light);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:var(--bma-green);}
+
+/* Flash animation when data updates */
+@keyframes flash-update{
+  0%{background-color:rgba(212,160,23,0.4);}
+  100%{background-color:transparent;}
+}
+.flash{animation:flash-update 0.8s ease-out;}
+
+@media(max-width:1100px){
+  .container{grid-template-columns:1fr;grid-template-rows:auto 50vh 1fr;}
+  .sidebar{max-height:200px;}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo">🏥</div>
+    <div class="title-block">
+      <h1>Bed Transparency Dashboard</h1>
+      <p>โรงพยาบาลในสังกัดสำนักการแพทย์ กรุงเทพมหานคร • Real-time Monitoring</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- LEFT: Hospital list -->
+  <aside class="sidebar">
+    <div class="sidebar-title">
+      โรงพยาบาลในสังกัด
+      <span class="count">11 แห่ง</span>
+    </div>
+    <div id="hospital-list"></div>
+  </aside>
+
+  <!-- CENTER: Map -->
+  <main class="map-wrap">
+    <div id="map"></div>
+    <div class="map-overlay">
+      <h3>🗺️ แผนที่โรงพยาบาลสังกัดสำนักการแพทย์</h3>
+      <p>คลิกหมุดเพื่อดูรายละเอียดเตียงว่างแบบเรียลไทม์ ข้อมูลอัปเดตอัตโนมัติทุก 30 วินาที</p>
+    </div>
+    <div class="map-legend">
+      <div style="font-weight:700;margin-bottom:6px;color:var(--bma-green-dark);">สถานะเตียงว่าง</div>
+      <div class="row"><div class="legend-dot" style="background:#27ae60;"></div>ว่างมาก (&gt;25%)</div>
+      <div class="row"><div class="legend-dot" style="background:#e67e22;"></div>ปานกลาง (10-25%)</div>
+      <div class="row"><div class="legend-dot" style="background:#c0392b;"></div>วิกฤต (&lt;10%)</div>
+    </div>
+  </main>
+
+  <!-- RIGHT: Details -->
+  <aside class="details" id="details-panel">
+    <!-- filled by JS -->
+  </aside>
+
+</div>
+
+<script>
+/* ==========================================================
+   DATA: 11 โรงพยาบาลสังกัดสำนักการแพทย์ กทม.
+   จำนวนเตียงอ้างอิงรายงานสรุปสถิติ ก.พ. 2569
+   orTotal       = จำนวนห้องผ่าตัดทั้งหมด
+   incubatorTotal= จำนวนตู้อบทารก (incubator) ทั้งหมด
+   hasRtpa       = โรงพยาบาลสำรองยา rtPA (ยาละลายลิ่มเลือดสำหรับ stroke) หรือไม่
+   ========================================================== */
+const HOSPITALS = [
+  { id:'klang', name:'โรงพยาบาลกลาง', short:'รพ.กลาง',
+    lat:13.7520, lng:100.5155, totalBeds:460, icuBeds:28, ventTotal:22,
+    orTotal:16, incubatorTotal:18, hasRtpa:true },
+  { id:'taksin', name:'โรงพยาบาลตากสิน', short:'รพ.ตากสิน',
+    lat:13.7280, lng:100.4880, totalBeds:485, icuBeds:32, ventTotal:24,
+    orTotal:14, incubatorTotal:16, hasRtpa:true },
+  { id:'charoenkrung', name:'โรงพยาบาลเจริญกรุงประชารักษ์', short:'รพ.เจริญกรุงฯ',
+    lat:13.6960, lng:100.5100, totalBeds:489, icuBeds:30, ventTotal:26,
+    orTotal:15, incubatorTotal:20, hasRtpa:true },
+  { id:'ratchapiphat', name:'โรงพยาบาลราชพิพัฒน์', short:'รพ.ราชพิพัฒน์',
+    lat:13.7370, lng:100.3810, totalBeds:525, icuBeds:34, ventTotal:28,
+    orTotal:16, incubatorTotal:14, hasRtpa:true },
+  { id:'sirindhorn', name:'โรงพยาบาลสิรินธร', short:'รพ.สิรินธร',
+    lat:13.7215, lng:100.7380, totalBeds:433, icuBeds:26, ventTotal:20,
+    orTotal:13, incubatorTotal:12, hasRtpa:true },
+  { id:'taweesak', name:'โรงพยาบาลหลวงพ่อทวีศักดิ์ ชุตินฺธโร อุทิศ', short:'รพ.หลวงพ่อทวีศักดิ์',
+    lat:13.7100, lng:100.3550, totalBeds:171, icuBeds:10, ventTotal:8,
+    orTotal:6, incubatorTotal:6, hasRtpa:true },
+  { id:'vejkarun', name:'โรงพยาบาลเวชการุณย์รัศมิ์', short:'รพ.เวชการุณย์รัศมิ์',
+    lat:13.8070, lng:100.6830, totalBeds:187, icuBeds:12, ventTotal:10,
+    orTotal:7, incubatorTotal:8, hasRtpa:true },
+  { id:'ladkrabang', name:'โรงพยาบาลลาดกระบังกรุงเทพมหานคร', short:'รพ.ลาดกระบัง',
+    lat:13.7280, lng:100.7880, totalBeds:71, icuBeds:6, ventTotal:4,
+    orTotal:3, incubatorTotal:4, hasRtpa:false },
+  { id:'bangkhunthian', name:'โรงพยาบาลผู้สูงอายุบางขุนเทียน', short:'รพ.ผู้สูงอายุบางขุนเทียน',
+    lat:13.6220, lng:100.4200, totalBeds:100, icuBeds:6, ventTotal:4,
+    orTotal:4, incubatorTotal:2, hasRtpa:false },
+  { id:'rattana', name:'โรงพยาบาลรัตนประชารักษ์', short:'รพ.รัตนประชารักษ์',
+    lat:13.8680, lng:100.7210, totalBeds:80, icuBeds:5, ventTotal:4,
+    orTotal:3, incubatorTotal:3, hasRtpa:false },
+  { id:'bangna', name:'โรงพยาบาลบางนากรุงเทพมหานคร', short:'รพ.บางนา',
+    lat:13.6680, lng:100.6450, totalBeds:120, icuBeds:8, ventTotal:6,
+    orTotal:5, incubatorTotal:5, hasRtpa:true },
+];
+
+const DEPARTMENTS = [
+  { key:'med',  name:'อายุรกรรม',      ratio:0.28 },
+  { key:'sur',  name:'ศัลยกรรม',        ratio:0.18 },
+  { key:'obg',  name:'สูติ-นรีเวชกรรม', ratio:0.12 },
+  { key:'ped',  name:'กุมารเวชกรรม',    ratio:0.10 },
+  { key:'ort',  name:'ออร์โธปิดิกส์',   ratio:0.10 },
+  { key:'eye',  name:'จักษุวิทยา',      ratio:0.04 },
+  { key:'ent',  name:'โสต ศอ นาสิก',    ratio:0.04 },
+  { key:'psy',  name:'จิตเวช',          ratio:0.03 },
+  { key:'icu',  name:'ICU',             ratio:0.06 },
+  { key:'oth',  name:'อื่นๆ',           ratio:0.05 },
+];
+
+/* ==========================================================
+   MOCK DATA GENERATOR — simulates realtime occupancy
+   ========================================================== */
+function genHospitalState(h){
+  const depts = DEPARTMENTS.map(d=>{
+    const total = Math.max(2, Math.round(h.totalBeds * d.ratio));
+    // Occupancy: weighted higher for med/sur/icu (mimics real BOR)
+    let baseOcc = 0.70 + Math.random()*0.22;
+    if(d.key==='icu') baseOcc = 0.75 + Math.random()*0.20;
+    if(d.key==='eye'||d.key==='ent'||d.key==='psy') baseOcc = 0.50 + Math.random()*0.30;
+    const used = Math.min(total, Math.round(total*baseOcc));
+    const free = total - used;
+    return { ...d, total, used, free };
+  });
+  // Ventilator: subset of total vents, usage correlates w/ ICU
+  const icuDept = depts.find(x=>x.key==='icu');
+  const ventUsed = Math.min(h.ventTotal, Math.round(h.ventTotal * (icuDept.used/icuDept.total) * (0.85+Math.random()*0.25)));
+  const ventFree = h.ventTotal - ventUsed;
+
+  // ห้องผ่าตัด (Operating Rooms) — ใช้งาน 60-88% ของห้องที่มี
+  const orTotal = h.orTotal;
+  const orUsed  = Math.min(orTotal, Math.round(orTotal * (0.60 + Math.random()*0.28)));
+  const orFree  = orTotal - orUsed;
+
+  // ตู้อบทารก (Incubator) — ใช้งาน 45-85%
+  const incTotal = h.incubatorTotal;
+  const incUsed  = incTotal === 0 ? 0 : Math.min(incTotal, Math.round(incTotal * (0.45 + Math.random()*0.40)));
+  const incFree  = incTotal - incUsed;
+
+  // ยา rtPA — โรงพยาบาลที่สำรองยาจะมีคงคลัง 2-10 vial; พร้อมใช้เมื่อ stock > 0
+  let rtpaStock = 0;
+  if(h.hasRtpa) rtpaStock = 2 + Math.floor(Math.random()*9);
+  const rtpaReady = h.hasRtpa && rtpaStock > 0;
+
+  const totalBeds = depts.reduce((s,d)=>s+d.total,0);
+  const freeBeds  = depts.reduce((s,d)=>s+d.free,0);
+  const usedBeds  = totalBeds - freeBeds;
+
+  return {
+    id:h.id,
+    name:h.name,
+    short:h.short,
+    lat:h.lat, lng:h.lng,
+    totalBeds, freeBeds, usedBeds,
+    icuTotal:icuDept.total, icuFree:icuDept.free, icuUsed:icuDept.used,
+    ventTotal:h.ventTotal, ventFree, ventUsed,
+    orTotal, orUsed, orFree,
+    incTotal, incUsed, incFree,
+    hasRtpa:h.hasRtpa, rtpaStock, rtpaReady,
+    depts,
+    occupancy: +(usedBeds/totalBeds*100).toFixed(1),
+    freePct:   +(freeBeds/totalBeds*100).toFixed(1),
+    updatedAt: new Date(),
+  };
+}
+
+let STATE = HOSPITALS.map(genHospitalState);
+let selectedId = STATE[0].id;
+
+/* ==========================================================
+   MAP SETUP (Leaflet + OpenStreetMap)
+   ========================================================== */
+const map = L.map('map',{zoomControl:true}).setView([13.7500, 100.5500], 10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap contributors',
+  maxZoom:18
+}).addTo(map);
+
+const markers = {};
+
+function getMarkerClass(h){
+  if(h.freePct < 10) return 'high';
+  if(h.freePct < 25) return 'mid';
+  return 'low';
+}
+
+function createMarker(h){
+  const cls = getMarkerClass(h);
+  const icon = L.divIcon({
+    className:'',
+    html:`<div class="bed-marker ${cls}" data-id="${h.id}"><span>${h.freeBeds}</span></div>`,
+    iconSize:[36,36],
+    iconAnchor:[18,36],
+  });
+  const m = L.marker([h.lat,h.lng],{icon}).addTo(map);
+  m.bindPopup(renderPopup(h));
+  m.on('click',()=>selectHospital(h.id));
+  return m;
+}
+
+function renderPopup(h){
+  const rtpaTxt = h.rtpaReady ? `พร้อมใช้ (${h.rtpaStock} vial)` : 'ไม่พร้อม';
+  return `
+    <div class="popup-title">${h.name}</div>
+    <div class="popup-grid">
+      <div class="lbl">เตียงว่างทั้งหมด</div><div class="val">${h.freeBeds} / ${h.totalBeds}</div>
+      <div class="lbl">ICU ว่าง</div><div class="val">${h.icuFree} / ${h.icuTotal}</div>
+      <div class="lbl">Ventilator ว่าง</div><div class="val">${h.ventFree} / ${h.ventTotal}</div>
+      <div class="lbl">ห้องผ่าตัดว่าง</div><div class="val">${h.orFree} / ${h.orTotal}</div>
+      <div class="lbl">Incubator ว่าง</div><div class="val">${h.incFree} / ${h.incTotal}</div>
+      <div class="lbl">ยา rtPA</div><div class="val ${h.rtpaReady?'':'off'}">${rtpaTxt}</div>
+      <div class="lbl">อัตราครองเตียง</div><div class="val">${h.occupancy}%</div>
+    </div>
+    <button class="popup-btn" onclick="selectHospital('${h.id}')">ดูรายละเอียดทั้งหมด →</button>
+  `;
+}
+
+STATE.forEach(h=>{ markers[h.id] = createMarker(h); });
+
+/* ==========================================================
+   RENDER: Sidebar list
+   ========================================================== */
+function renderSidebar(){
+  const list = document.getElementById('hospital-list');
+  list.innerHTML = STATE.map(h=>{
+    const cls = h.freePct < 10 ? 'high' : h.freePct < 25 ? 'mid' : '';
+    return `
+      <div class="hospital-card ${h.id===selectedId?'active':''}" data-id="${h.id}">
+        <div class="hc-name">${h.short}</div>
+        <div class="hc-stats">
+          <span>เตียงว่าง <strong>${h.freeBeds}</strong>/${h.totalBeds}</span>
+          <span>ICU <strong>${h.icuFree}</strong></span>
+          <span>Vent <strong>${h.ventFree}</strong></span>
+          <span>ห้องผ่าตัด <strong>${h.orFree}</strong>/${h.orTotal}</span>
+          <span class="hc-rtpa-tag ${h.rtpaReady?'':'off'}">rtPA ${h.rtpaReady?'พร้อม':'ไม่พร้อม'}</span>
+        </div>
+        <div class="hc-bar"><div class="hc-bar-fill ${cls}" style="width:${h.occupancy}%"></div></div>
+      </div>`;
+  }).join('');
+  document.querySelectorAll('.hospital-card').forEach(el=>{
+    el.addEventListener('click',()=>selectHospital(el.dataset.id));
+  });
+}
+
+/* ==========================================================
+   RENDER: Detail panel
+   ========================================================== */
+function renderDetails(){
+  const h = STATE.find(x=>x.id===selectedId);
+  const panel = document.getElementById('details-panel');
+
+  const occCls = h.occupancy >= 85 ? 'high' : h.occupancy >= 70 ? 'mid' : '';
+  const circumference = 2 * Math.PI * 30;
+  const offset = circumference * (1 - h.occupancy/100);
+  const ringColor = h.occupancy >= 85 ? 'var(--red)' : h.occupancy >= 70 ? 'var(--amber)' : 'var(--bma-green)';
+
+  // helper: % ว่าง -> class
+  const pctClass = (free,total)=>{
+    if(total===0) return 'high';
+    const p = free/total*100;
+    return p < 10 ? 'high' : p < 25 ? 'mid' : '';
+  };
+  const freeClass = (free,total)=> free===0 ? 'zero' : free<=2 ? 'low' : '';
+  const pctNum = (free,total)=> total===0 ? 0 : +(free/total*100).toFixed(0);
+
+  panel.innerHTML = `
+    <div class="detail-header">
+      <h2>${h.name}</h2>
+      <div class="sub">📍 ${h.lat.toFixed(4)}, ${h.lng.toFixed(4)} • รหัส: ${h.id.toUpperCase()}</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi total">
+        <div class="label">เตียงทั้งหมด</div>
+        <div class="value">${h.totalBeds}</div>
+        <div class="unit">เตียง</div>
+      </div>
+      <div class="kpi">
+        <div class="label">เตียงว่างรวม</div>
+        <div class="value">${h.freeBeds}</div>
+        <div class="unit">${h.freePct}% ของทั้งหมด</div>
+      </div>
+      <div class="kpi icu">
+        <div class="label">ICU ว่าง</div>
+        <div class="value">${h.icuFree}</div>
+        <div class="unit">จาก ${h.icuTotal} เตียง</div>
+      </div>
+      <div class="kpi vent">
+        <div class="label">Ventilator ว่าง</div>
+        <div class="value">${h.ventFree}</div>
+        <div class="unit">จาก ${h.ventTotal} เครื่อง</div>
+      </div>
+      <div class="kpi or">
+        <div class="label">ห้องผ่าตัดว่าง</div>
+        <div class="value">${h.orFree}</div>
+        <div class="unit">ใช้อยู่ ${h.orUsed} / ${h.orTotal} ห้อง</div>
+      </div>
+      <div class="kpi inc">
+        <div class="label">Incubator ว่าง</div>
+        <div class="value">${h.incFree}</div>
+        <div class="unit">จาก ${h.incTotal} ตู้</div>
+      </div>
+    </div>
+
+    <div class="rtpa-banner ${h.rtpaReady?'ready':'notready'}">
+      <div class="rtpa-icon">${h.rtpaReady?'💉':'⚠️'}</div>
+      <div class="rtpa-text">
+        <div class="t">ยา rtPA (ยาละลายลิ่มเลือด — โรคหลอดเลือดสมอง)</div>
+        <div class="s">${h.rtpaReady
+          ? `คงคลังพร้อมใช้ ${h.rtpaStock} vial`
+          : (h.hasRtpa ? 'ยาหมดคงคลัง — รอเติม' : 'โรงพยาบาลนี้ไม่ได้สำรองยา rtPA')}</div>
+      </div>
+      <div class="rtpa-state ${h.rtpaReady?'ready':'notready'}">${h.rtpaReady?'พร้อมใช้':'ไม่พร้อม'}</div>
+    </div>
+
+    <div class="occ-box">
+      <div class="ring">
+        <svg width="80" height="80">
+          <circle class="bg" cx="40" cy="40" r="30"/>
+          <circle class="fg" cx="40" cy="40" r="30"
+                  stroke="${ringColor}"
+                  stroke-dasharray="${circumference}"
+                  stroke-dashoffset="${offset}"/>
+        </svg>
+        <div class="label">${h.occupancy}%</div>
+      </div>
+      <div class="occ-info">
+        <div class="t">อัตราการครองเตียง (BOR)</div>
+        <div class="v">${h.usedBeds} เตียง / ${h.totalBeds} เตียง</div>
+        <div class="t" style="margin-top:6px;font-size:11px;">
+          ${h.occupancy >= 85 ? '🔴 ระดับวิกฤต — ควรเฝ้าระวัง'
+            : h.occupancy >= 70 ? '🟡 ระดับเหมาะสม'
+            : '🟢 มีพื้นที่รองรับเพียงพอ'}
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">สรุปทรัพยากรสำคัญ</div>
+    <table class="res-table">
+      <thead>
+        <tr>
+          <th>ทรัพยากร</th>
+          <th>ทั้งหมด</th>
+          <th>ใช้งาน</th>
+          <th>ว่าง</th>
+          <th>สถานะ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="res-name"><span class="res-icon" style="background:rgba(142,68,173,0.15);">🔪</span>ห้องผ่าตัด</td>
+          <td>${h.orTotal}</td>
+          <td>${h.orUsed}</td>
+          <td class="free ${freeClass(h.orFree,h.orTotal)}">${h.orFree}</td>
+          <td><span class="pct-pill ${pctClass(h.orFree,h.orTotal)}">${pctNum(h.orFree,h.orTotal)}% ว่าง</span></td>
+        </tr>
+        <tr>
+          <td class="res-name"><span class="res-icon" style="background:rgba(192,57,43,0.15);">🛏️</span>ICU</td>
+          <td>${h.icuTotal}</td>
+          <td>${h.icuUsed}</td>
+          <td class="free ${freeClass(h.icuFree,h.icuTotal)}">${h.icuFree}</td>
+          <td><span class="pct-pill ${pctClass(h.icuFree,h.icuTotal)}">${pctNum(h.icuFree,h.icuTotal)}% ว่าง</span></td>
+        </tr>
+        <tr>
+          <td class="res-name"><span class="res-icon" style="background:rgba(230,126,34,0.15);">🫁</span>Ventilator</td>
+          <td>${h.ventTotal}</td>
+          <td>${h.ventUsed}</td>
+          <td class="free ${freeClass(h.ventFree,h.ventTotal)}">${h.ventFree}</td>
+          <td><span class="pct-pill ${pctClass(h.ventFree,h.ventTotal)}">${pctNum(h.ventFree,h.ventTotal)}% ว่าง</span></td>
+        </tr>
+        <tr>
+          <td class="res-name"><span class="res-icon" style="background:rgba(22,160,133,0.15);">👶</span>Incubator</td>
+          <td>${h.incTotal}</td>
+          <td>${h.incUsed}</td>
+          <td class="free ${freeClass(h.incFree,h.incTotal)}">${h.incFree}</td>
+          <td><span class="pct-pill ${pctClass(h.incFree,h.incTotal)}">${pctNum(h.incFree,h.incTotal)}% ว่าง</span></td>
+        </tr>
+        <tr>
+          <td class="res-name"><span class="res-icon" style="background:rgba(39,174,96,0.15);">💉</span>ยา rtPA</td>
+          <td>${h.hasRtpa? h.rtpaStock+' vial' : '—'}</td>
+          <td>—</td>
+          <td>—</td>
+          <td><span class="status-pill ${h.rtpaReady?'ready':'notready'}">${h.rtpaReady?'พร้อมใช้':'ไม่พร้อม'}</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-title">เตียงว่างแยกตามแผนก</div>
+    <table class="dept-table">
+      <thead>
+        <tr>
+          <th>แผนก</th>
+          <th>ทั้งหมด</th>
+          <th>ว่าง</th>
+          <th>% ว่าง</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${h.depts.map(d=>{
+          const pct = +(d.free/d.total*100).toFixed(0);
+          const pCls = pct < 10 ? 'high' : pct < 25 ? 'mid' : '';
+          const fCls = d.free===0 ? 'zero' : d.free<=2 ? 'low' : '';
+          return `
+            <tr>
+              <td class="dept-name">${d.name}</td>
+              <td>${d.total}</td>
+              <td class="free ${fCls}">${d.free}</td>
+              <td><span class="pct-pill ${pCls}">${pct}%</span></td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+
+    <div class="update-footer">
+      🕐 อัปเดตล่าสุด: ${h.updatedAt.toLocaleTimeString('th-TH')} • Auto-refresh ทุก 30 วินาที
+    </div>
+  `;
+  panel.classList.remove('flash');
+  void panel.offsetWidth;
+  panel.classList.add('flash');
+}
+
+/* ==========================================================
+   SELECT HOSPITAL
+   ========================================================== */
+function selectHospital(id){
+  selectedId = id;
+  const h = STATE.find(x=>x.id===id);
+  renderSidebar();
+  renderDetails();
+  // Pan map + open popup
+  map.flyTo([h.lat, h.lng], 12, {duration:0.8});
+  setTimeout(()=>markers[id].openPopup(), 400);
+  // Highlight marker
+  document.querySelectorAll('.bed-marker').forEach(el=>el.classList.remove('active-pin'));
+  const m = document.querySelector(`.bed-marker[data-id="${id}"]`);
+  if(m) m.classList.add('active-pin');
+}
+window.selectHospital = selectHospital;
+
+/* ==========================================================
+   REALTIME: Update every 30s
+   ========================================================== */
+function refreshData(){
+  STATE = HOSPITALS.map(genHospitalState);
+  // Update markers
+  STATE.forEach(h=>{
+    const cls = getMarkerClass(h);
+    const icon = L.divIcon({
+      className:'',
+      html:`<div class="bed-marker ${cls} ${h.id===selectedId?'active-pin':''}" data-id="${h.id}"><span>${h.freeBeds}</span></div>`,
+      iconSize:[36,36], iconAnchor:[18,36],
+    });
+    markers[h.id].setIcon(icon);
+    markers[h.id].setPopupContent(renderPopup(h));
+  });
+  renderSidebar();
+  renderDetails();
+}
+
+/* ==========================================================
+   CLOCK
+   ========================================================== */
+function updateClock(){
+  const now = new Date();
+  const t = now.toLocaleTimeString('th-TH',{hour12:false});
+  const d = now.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('clock').textContent = `${d} ${t}`;
+}
+
+/* ==========================================================
+   INIT
+   ========================================================== */
+renderSidebar();
+renderDetails();
+selectHospital(selectedId); // open default popup & pan
+updateClock();
+setInterval(updateClock, 1000);
+setInterval(refreshData, 30000); // every 30s
+</script>
+
+</body>
+</html>
